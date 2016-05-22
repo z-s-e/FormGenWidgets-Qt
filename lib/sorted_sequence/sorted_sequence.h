@@ -33,7 +33,7 @@
 namespace sorted_sequence {
 inline int key(const QHash<int, int>::iterator &it)
 {
-    return it.value();
+    return it.key();
 }
 
 inline int& value_ref(QHash<int, int>::iterator &it)
@@ -49,12 +49,12 @@ inline int& value_ref(QHash<int, int>::iterator &it)
 #include <unordered_map>
 
 namespace sorted_sequence {
-inline ptrdiff_t key(const std::unordered_map<std::ptrdiff_t, ptrdiff_t>::iterator &it)
+inline std::ptrdiff_t key(const std::unordered_map<std::ptrdiff_t, ptrdiff_t>::iterator &it)
 {
     return it->first;
 }
 
-inline ptrdiff_t& value_ref(typename std::unordered_map<ptrdiff_t, ptrdiff_t>::iterator &it)
+inline std::ptrdiff_t& value_ref(typename std::unordered_map<ptrdiff_t, ptrdiff_t>::iterator &it)
 {
     return it->second;
 }
@@ -80,7 +80,7 @@ struct default_sort_algorithm {
 };
 
 
-// default (std::less wrapper) + lambda wrapper Compare
+// default (std::less wrapper) + function wrapper Compare
 // ----------------------------------------------------------------------------
 
 template< typename T >
@@ -100,17 +100,17 @@ bool operator!=(const default_compare<T>&, const default_compare<T>&)
 
 
 template< typename T >
-class lambda_compare {
+class function_compare {
 public:
     typedef std::function<bool(const T&, const T&)> Func;
 
-    explicit lambda_compare(const Func& f)
+    explicit function_compare(const Func& f)
         : m_f(std::make_shared<const Func>(f))
     {
         assert(*m_f);
     }
 
-    explicit lambda_compare(Func&& f)
+    explicit function_compare(Func&& f)
         : m_f(std::make_shared<const Func>(std::move(f)))
     {
         assert(*m_f);
@@ -123,12 +123,12 @@ public:
         return (*m_f)(x, y);
     }
 
-    bool operator==(const lambda_compare<T>& other) const
+    bool operator==(const function_compare<T>& other) const
     {
         return m_f == other.m_f;
     }
 
-    bool operator!=(const lambda_compare<T>& other) const
+    bool operator!=(const function_compare<T>& other) const
     {
         return !operator==(other);
     }
@@ -169,7 +169,7 @@ public:
     /**
      * Like setCompareOperator, but also report for each key in oldToNew its new position
      * after resorting (as the value), so when returning oldToNew[oldIndex] == newIndex.
-     * 
+     *
      * Map is supposed to work with std::unordered_map<index, index> and the Qt container
      * QHash<index, index>. Sadly their iterator interfaces are different, so a small wrapper
      * is used. To enable the QHash wrapper define SORTEDSEQUENCE_ENABLE_QHASH_WRAPPER, for
@@ -179,12 +179,11 @@ public:
     void setCompareOperatorGetReorderMap(const Compare& comparison,
                                          Map* oldToNew);
 
-
-    index insertPosition(const value_type& value, InsertMode mode = InsertLast,
+    template< class T >
+    index insertPosition(const T& value, InsertMode mode = InsertLast,
                          index positionHint = -1) const;
-    index insert(const value_type& value, InsertMode mode = InsertLast,
-                 index positionHint = -1);
-    index insert(value_type&& value, InsertMode mode = InsertLast,
+    template< class T >
+    index insert(T&& value, InsertMode mode = InsertLast,
                  index positionHint = -1);
 
     /**
@@ -197,9 +196,8 @@ public:
      *                                    one binary search operation.
      * @return The new position after changing the value
      */
-    index change(index i, const value_type& newValue, InsertMode mode = InsertLast,
-                 index newPositionHintBeforeRemove = -1);
-    index change(index i, value_type&& newValue, InsertMode mode = InsertLast,
+    template< class T >
+    index change(index i, T&& newValue, InsertMode mode = InsertLast,
                  index newPositionHintBeforeRemove = -1);
 
     const Container& container() const { return d.c; }
@@ -224,21 +222,21 @@ public:
     bool empty() const { return d.c.empty(); }
     bool isEmpty() const { return empty(); }
 
-    bool contains(const value_type& value) const;
-    size_type count(const value_type& value) const;
-    index indexOf(const value_type& value, index from = 0) const;
-    index lastIndexOf(const value_type& value, index from = -1) const;
-    index findFirst(const value_type& value) const;
-    index findLast(const value_type& value) const;
-    std::pair<index, index> range(const value_type& value) const;
+    template< class T > bool contains(const T& value) const;
+    template< class T > size_type count(const T& value) const;
+    template< class T > index indexOf(const T& value, index from = 0) const;
+    template< class T > index lastIndexOf(const T& value, index from = -1) const;
+    template< class T > index findFirst(const T& value) const;
+    template< class T > index findLast(const T& value) const;
+    template< class T > std::pair<index, index> range(const T& value) const;
 
     void clear() { d.c.clear(); }
     void removeAt(index i) { d.c.erase(d.c.begin() + i); }
     void removeFirst() { removeAt(0); }
     void removeLast() { removeAt(size() - 1); }
     void removeRange(index begin, index end);
-    bool removeOne(const value_type& value);
-    index removeAll(const value_type& value);
+    template< class T > bool removeOne(const T& value);
+    template< class T > index removeAll(const T& value);
 
     const_iterator erase(const_iterator position);
     const_iterator erase(const_iterator first, const_iterator last);
@@ -269,30 +267,6 @@ private:
     void sort()
     {
         SortAlgorithm::template sort(d.c.begin(), d.c.end(), d);
-    }
-
-    template< class T >
-    index changeFwdAssign(index i, T&& newValue, InsertMode mode,
-                          index newPositionHintBeforeRemove)
-    {
-        assert(i >= 0 && i < index(size()));
-
-        const index pos = insertPosition(newValue, mode, newPositionHintBeforeRemove);
-
-        if( pos == i || pos == i + 1) {
-            d.c[i] = std::forward<T>(newValue);
-            return i;
-        } else if( pos < i) {
-            auto first = d.c.begin();
-            std::move_backward(first + pos, first + i, first + i + 1);
-            d.c[pos] = std::forward<T>(newValue);
-            return pos;
-        } else {
-            auto first = d.c.begin();
-            std::move(first + i + 1, first + pos, first + i);
-            d.c[pos - 1] = std::forward<T>(newValue);
-            return pos - 1;
-        }
     }
 
     struct Data : public Compare {
@@ -354,7 +328,7 @@ void adaptor<Container, Compare, SortAlgorithm>::setCompareOperator(const Compar
 }
 
 template<class Container, class Compare, class SortAlgorithm>
-template< class Map >
+template<class Map>
 void adaptor<Container, Compare, SortAlgorithm>::setCompareOperatorGetReorderMap(const Compare& comparison,
                                                                                  Map *oldToNew)
 {
@@ -415,14 +389,15 @@ void adaptor<Container, Compare, SortAlgorithm>::setCompareOperatorGetReorderMap
 
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::insertPosition(const value_type& value,
+adaptor<Container, Compare, SortAlgorithm>::insertPosition(const T& value,
                                                            InsertMode mode,
                                                            index positionHint) const
 {
     const index n = index(size());
     if( positionHint >= 0 && positionHint <= n ) {
-        if( empty() )
+        if( n == 0 )
             return 0;
 
         if( positionHint == 0 ) {
@@ -457,45 +432,43 @@ adaptor<Container, Compare, SortAlgorithm>::insertPosition(const value_type& val
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::insert(const value_type& value,
+adaptor<Container, Compare, SortAlgorithm>::insert(T&& value,
                                                    InsertMode mode,
                                                    index positionHint)
 {
     const index pos = insertPosition(value, mode, positionHint);
-    d.c.insert(d.c.begin() + pos, value);
+    d.c.insert(d.c.begin() + pos, std::forward<T>(value));
     return pos;
 }
 
 template<class Container, class Compare, class SortAlgorithm>
-typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::insert(value_type&& value,
-                                                   InsertMode mode,
-                                                   index positionHint)
-{
-    const index pos = insertPosition(value, mode, positionHint);
-    d.c.insert(d.c.begin() + pos, std::move(value));
-    return pos;
-}
-
-template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
 adaptor<Container, Compare, SortAlgorithm>::change(index i,
-                                                   const value_type& newValue,
+                                                   T&& newValue,
                                                    InsertMode mode,
                                                    index newPositionHintBeforeRemove)
 {
-    return changeFwdAssign(i, newValue, mode, newPositionHintBeforeRemove);
-}
+    assert(i >= 0 && i < index(size()));
 
-template<class Container, class Compare, class SortAlgorithm>
-typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::change(index i,
-                                                   value_type&& newValue,
-                                                   InsertMode mode,
-                                                   index newPositionHintBeforeRemove)
-{
-    return changeFwdAssign(i, std::move(newValue), mode, newPositionHintBeforeRemove);
+    const index pos = insertPosition(newValue, mode, newPositionHintBeforeRemove);
+
+    if( pos == i || pos == i + 1) {
+        d.c[i] = std::forward<T>(newValue);
+        return i;
+    } else if( pos < i) {
+        auto first = d.c.begin();
+        std::move_backward(first + pos, first + i, first + i + 1);
+        d.c[pos] = std::forward<T>(newValue);
+        return pos;
+    } else {
+        auto first = d.c.begin();
+        std::move(first + i + 1, first + pos, first + i);
+        d.c[pos - 1] = std::forward<T>(newValue);
+        return pos - 1;
+    }
 }
 
 template<class Container, class Compare, class SortAlgorithm>
@@ -507,23 +480,26 @@ Container adaptor<Container, Compare, SortAlgorithm>::takeContainer()
 }
 
 template<class Container, class Compare, class SortAlgorithm>
-bool adaptor<Container, Compare, SortAlgorithm>::contains(const value_type& value) const
+template<class T>
+bool adaptor<Container, Compare, SortAlgorithm>::contains(const T &value) const
 {
     auto range = std::equal_range(begin(), end(), value, d);
     return std::find(range.first, range.second, value) != range.second;
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::size_type
-adaptor<Container, Compare, SortAlgorithm>::count(const value_type& value) const
+adaptor<Container, Compare, SortAlgorithm>::count(const T& value) const
 {
     auto range = std::equal_range(begin(), end(), value, d);
     return std::count(range.first, range.second, value);
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::indexOf(const value_type& value,
+adaptor<Container, Compare, SortAlgorithm>::indexOf(const T& value,
                                                     index from) const
 {
     auto range = std::equal_range(begin() + std::max(index(0), std::min(from, index(size()))),
@@ -533,8 +509,9 @@ adaptor<Container, Compare, SortAlgorithm>::indexOf(const value_type& value,
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::lastIndexOf(const value_type& value,
+adaptor<Container, Compare, SortAlgorithm>::lastIndexOf(const T& value,
                                                         index from) const
 {
     auto range = std::equal_range(begin() + std::max(index(0), std::min(from, index(size()))),
@@ -550,22 +527,25 @@ adaptor<Container, Compare, SortAlgorithm>::lastIndexOf(const value_type& value,
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::findFirst(const value_type& value) const
+adaptor<Container, Compare, SortAlgorithm>::findFirst(const T& value) const
 {
     return indexOf(value);
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::findLast(const value_type& value) const
+adaptor<Container, Compare, SortAlgorithm>::findLast(const T& value) const
 {
     return lastIndexOf(value);
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 std::pair<typename adaptor<Container, Compare, SortAlgorithm>::index, typename adaptor<Container, Compare, SortAlgorithm>::index>
-adaptor<Container, Compare, SortAlgorithm>::range(const value_type& value) const
+adaptor<Container, Compare, SortAlgorithm>::range(const T& value) const
 {
     auto range = std::equal_range(begin(), end(), value, d);
     return std::pair<index, index>(offset(range.first), offset(range.second));
@@ -579,7 +559,8 @@ void adaptor<Container, Compare, SortAlgorithm>::removeRange(index begin,
 }
 
 template<class Container, class Compare, class SortAlgorithm>
-bool adaptor<Container, Compare, SortAlgorithm>::removeOne(const value_type& value)
+template<class T>
+bool adaptor<Container, Compare, SortAlgorithm>::removeOne(const T& value)
 {
     index i = findLast(value);
     if( i < 0 )
@@ -589,8 +570,9 @@ bool adaptor<Container, Compare, SortAlgorithm>::removeOne(const value_type& val
 }
 
 template<class Container, class Compare, class SortAlgorithm>
+template<class T>
 typename adaptor<Container, Compare, SortAlgorithm>::index
-adaptor<Container, Compare, SortAlgorithm>::removeAll(const value_type& value)
+adaptor<Container, Compare, SortAlgorithm>::removeAll(const T& value)
 {
     auto r = std::equal_range(d.c.begin(), d.c.end(), value, d);
     auto it = std::remove(r.first, r.second, value);

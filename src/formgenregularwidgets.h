@@ -359,6 +359,7 @@ class FORMGENWIDGETS_EXPORT FormGenFileUrlList : public FormGenFramedBase {
 public:
     explicit FormGenFileUrlList(ElementType type = Required, QWidget * parent = nullptr);
 
+    void setMimeDirectoriesOnly();
     void setMimeTypes(const QStringList &mimeList);
     QStringList mimeTypes() const;
 

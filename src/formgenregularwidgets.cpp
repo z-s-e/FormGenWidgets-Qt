@@ -933,6 +933,11 @@ FormGenFileUrlList::FormGenFileUrlList(FormGenElement::ElementType type, QWidget
     updateInputWidgets();
 }
 
+void FormGenFileUrlList::setMimeDirectoriesOnly()
+{
+    setMimeTypes( {"inode/directory"} );
+}
+
 void FormGenFileUrlList::setMimeTypes(const QStringList &mimeList)
 {
     mMimeTypes = mimeList;

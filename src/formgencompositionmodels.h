@@ -55,7 +55,7 @@ class FORMGENWIDGETS_EXPORT FormGenBagModel : public QAbstractListModel {
 
 public:
     typedef QPair<QString, QVariant> DataElement;
-    typedef sorted_sequence::lambda_compare<DataElement> Compare;
+    typedef sorted_sequence::function_compare<DataElement> Compare;
 
     FormGenBagModel(QObject * parent = 0);
 

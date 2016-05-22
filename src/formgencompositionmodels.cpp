@@ -1,7 +1,7 @@
 /* Copyright 2014, 2015 Zeno Sebastian Endemann <zeno.endemann@googlemail.com>
  *
  * This file is part of FormGenWidgets-Qt.
- * 
+ *
  * FormGenWidgets-Qt is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -81,11 +81,7 @@ void FormGenListModel::editRow(int row, const QString &newDisplay, const QVarian
 
 void FormGenListModel::appendRow(const QString &display, const QVariant &data)
 {
-    const int row = mDataItems.size();
-    beginInsertRows(QModelIndex(), row, row);
-    mDataItems.append(data);
-    mDisplayItems.append(display);
-    endInsertRows();
+    insertRow(mDataItems.size(), display, data);
 }
 
 void FormGenListModel::insertRow(int row, const QString &display, const QVariant &data)
@@ -112,7 +108,7 @@ void FormGenListModel::removeRow(int row)
 
 void FormGenListModel::moveRow(int sourceRow, int targetRow)
 {
-    if (sourceRow == targetRow || sourceRow < 0 || targetRow < 0)
+    if (sourceRow == targetRow || sourceRow < 0 || targetRow < 0 || sourceRow >= mDataItems.size() || targetRow >= mDataItems.size())
         return;
 
     beginMoveRows(QModelIndex(), sourceRow, sourceRow,

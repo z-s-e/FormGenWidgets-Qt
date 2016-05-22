@@ -30,15 +30,17 @@ int main(int argc, char *argv[])
     }
     {
         auto * files = new FormGenFileUrlList;
-        //files->setMimeTypes( {"inode/directory"} );
         test->addElement("files", files);
     }
     {
         auto * list = new FormGenListBagComposition(FormGenListBagComposition::BagMode);
-        list->setContentElement(new FormGenIntWidget);
+        auto * rec = new FormGenRecordComposition;
+        rec->addElement("i", new FormGenIntWidget);
+        rec->addElement("s", new FormGenTextWidget);
+        list->setContentElement(rec, "Current entry");
         test->addElement("list", list);
         list->setCompareOperator(FormGenBagModel::Compare([] (const FormGenBagModel::DataElement& x, const FormGenBagModel::DataElement& y) {
-            return x.second.toInt() < y.second.toInt();
+            return x.second.toHash().value("i").toInt() < y.second.toHash().value("i").toInt();
         }));
     }
     test->connect(test, &FormGenElement::valueChanged, [&test] { qDebug() << test->valueString(); } );
